@@ -1,16 +1,4 @@
 #!/usr/bin/env python3
-import os as _os_timing, time as _time_module
-if _os_timing.environ.get('TW_TIMING'):
-    import atexit as _atexit
-    _t0 = _time_module.perf_counter()
-
-    def _report_timing():
-        elapsed = (_time_module.perf_counter() - _t0) * 1000
-        import os.path as _osp
-        print(f"[timing] {_osp.basename(__file__)}: {elapsed:.1f}ms", file=__import__('sys').stderr)
-
-    _atexit.register(_report_timing)
-
 """
 on-exit_annn.py - Auto-annotation hook for Taskwarrior 2.6.2
 Version: 0.5.2
@@ -71,16 +59,30 @@ def get_log_dir():
     return log_dir
 
 # ============================================================================
+# Timing support - set TW_TIMING=1 to enable; zero overhead otherwise
+# ============================================================================
+if os.environ.get('TW_TIMING'):
+    import time as _time_module
+    import atexit as _atexit
+    _t0 = _time_module.perf_counter()
+
+    def _report_timing():
+        elapsed = (_time_module.perf_counter() - _t0) * 1000
+        print(f"[timing] {os.path.basename(__file__)}: {elapsed:.1f}ms", file=sys.stderr)
+
+    _atexit.register(_report_timing)
+
 # ============================================================================
 # Original Code with Debug Enhancements
 # ============================================================================
 
 VERSION = "0.1.0"
-ANNN_RC = os.path.expanduser("~/.task/config/annn.rc")
+TASK_DIR = os.environ.get('TW_TASK_DIR', os.path.expanduser('~/.task'))
+ANNN_RC = os.path.join(TASK_DIR, 'config', 'annn.rc')
 
 # Debug logging - set DEBUG_ANNN=1 to enable
 DEBUG = os.environ.get("DEBUG_ANNN", "0") == "1"
-LOG_FILE = os.path.expanduser("~/.task/logs/debug/annn_debug.log")
+LOG_FILE = os.path.join(TASK_DIR, 'logs', 'debug', 'annn_debug.log')
 
 # Defaults (overridden by annn.rc)
 DEFAULTS = {
@@ -219,8 +221,7 @@ def save_annotation(task, text):
 
     try:
         result = subprocess.run(
-            ["task", "rc.hooks=off", "rc.confirmation=off", "rc.verbose=nothing",
-             uuid, "annotate", text],
+            ["task", "rc.hooks=off", "rc.confirmation=off", uuid, "annotate", text],
             capture_output=True, text=True
         )
 

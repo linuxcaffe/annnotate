@@ -1,0 +1,20 @@
+# ── Runtime / session artifacts ──────────────────────────────────────────────
+logs/
+*.log
+
+# ── Dev workspace (local notes, scratch, WIP — not for public consumption) ───
+dev/
+
+# ── Claude session notes (useful locally, noisy on GitHub) ───────────────────
+claude/
+
+# ── Pipeline backups (make-awesome.py --envar leaves .orig files) ─────────────
+*.orig
+
+# ── Python bytecode ───────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+
+# ── OS noise ──────────────────────────────────────────────────────────────────
+.DS_Store
