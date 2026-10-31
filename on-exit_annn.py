@@ -15,7 +15,7 @@ Configuration (in annn.rc):
 
 The editor gets the terminal (/dev/tty): Taskwarrior gives hooks pipes.
 Without a terminal (TW_NOINTERACT set by tw-web, vit), the hook leaves a
-command in TW_SPOOL_DIR that the client offers to run in a terminal:
+command in TW_SPOOL_DIR (with a .reason) that the client offers to run in a terminal:
   on-exit_annn.py --annotate <uuid> <event>
 (awesome-taskwarrior CONVENTIONS.md, section 3)
 
@@ -286,7 +286,11 @@ def spool(task, event):
     cmd = " ".join(shlex.quote(a) for a in
                    [sys.executable, os.path.abspath(__file__), "--annotate", uuid, event])
     path = os.path.join(spool_dir, "annn-{}.cmd".format(uuid))
+    reason = "annn: write a note for '{}' ({})".format(task.get("description", "")[:60], event)
     try:
+        # the reason first: a client may drain the spool as soon as the .cmd is there
+        with open(path[:-4] + ".reason", "w") as f:
+            f.write(reason + "\n")
         with open(path, "w") as f:
             f.write(cmd + "\n")
         debug_log("Spooled: {}".format(cmd))
