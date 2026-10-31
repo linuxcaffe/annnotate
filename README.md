@@ -352,6 +352,13 @@ The annotation is saved to the task after the editor closes. Empty saves
 are skipped. The hook uses `rc.hooks=off` when saving to avoid re-triggering
 itself.
 
+The editor opens on your terminal (`/dev/tty`), since Taskwarrior gives hooks
+pipes. In a client without a terminal (tw-web, vit: `TW_NOINTERACT=1`) the task
+is completed or deleted as usual, and the hook leaves the editor step in the
+client's spool (`TW_SPOOL_DIR`): the client offers to run it in a terminal
+afterwards. See awesome-taskwarrior's
+[CONVENTIONS.md](https://github.com/linuxcaffe/awesome-taskwarrior/blob/main/CONVENTIONS.md).
+
 ---
 
 ## Configuration
@@ -440,7 +447,7 @@ these edge cases gracefully.
 
 ## Metadata
 
-- Version: 0.7.0
+- Version: 0.7.1
 - License: MIT
 - Language: Bash (CLI), Python (hook)
 - Interface: CLI + `$EDITOR`

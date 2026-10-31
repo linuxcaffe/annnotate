@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 on-exit_annn.py - Auto-annotation hook for Taskwarrior 2.6.2
-Version: 0.5.2
+Version: 0.7.1
 
 When a task tagged with +ann (configurable) is completed or deleted,
 opens $EDITOR for the user to write an annotation. The annotation is
@@ -12,6 +12,12 @@ Configuration (in annn.rc):
   annn.on_complete=yes      Prompt on task completion (default: yes)
   annn.on_delete=yes        Prompt on task deletion (default: yes)
   annn.editor=vim           Editor override (default: $EDITOR or vim)
+
+The editor gets the terminal (/dev/tty): Taskwarrior gives hooks pipes.
+Without a terminal (TW_NOINTERACT set by tw-web, vit), the hook leaves a
+command in TW_SPOOL_DIR that the client offers to run in a terminal:
+  on-exit_annn.py --annotate <uuid> <event>
+(awesome-taskwarrior CONVENTIONS.md, section 3)
 
 Install:
   cp on-exit_annn.py ~/.task/hooks/on-exit_annn.py
@@ -29,6 +35,7 @@ from pathlib import Path
 from datetime import datetime
 import json
 import re
+import shlex
 import subprocess
 import tempfile
 
@@ -76,7 +83,7 @@ if os.environ.get('TW_TIMING'):
 # Original Code with Debug Enhancements
 # ============================================================================
 
-VERSION = "0.1.0"
+VERSION = "0.7.1"
 TASK_DIR = os.environ.get('TW_TASK_DIR', os.path.expanduser('~/.task'))
 ANNN_RC = os.path.join(TASK_DIR, 'config', 'annn.rc')
 
@@ -175,16 +182,25 @@ def prompt_annotation(task, event):
         debug_log("Failed to create temp file: {}".format(e))
         return None
 
+    # The editor needs the terminal: a hook's stdin and stdout are pipes to task.
+    # Binary, unbuffered: a text-mode /dev/tty fails on its seek at open.
+    try:
+        tty = open('/dev/tty', 'r+b', buffering=0)
+    except OSError as e:
+        debug_log("No terminal: {}".format(e))
+        print("[annn] No terminal for the editor; annotate later: task {} annotate -- …".format(uuid))
+        os.unlink(tmppath)
+        return None
+
     try:
         # Show context to the user
-        print("")
-        print("[annn] Task {}: {}".format(task_id, desc))
-        print("[annn] Event: {}".format(event))
-        print("[annn] Opening editor for annotation...")
-        print("")
+        tty.write("\n[annn] Task {}: {}\n[annn] Event: {}\n"
+                  "[annn] Opening editor for annotation...\n\n"
+                  .format(task_id, desc, event).encode())
 
         # Open editor
-        result = subprocess.run([editor, tmppath])
+        result = subprocess.run(shlex.split(editor) + [tmppath],
+                                stdin=tty, stdout=tty, stderr=tty)
 
         if result.returncode != 0:
             debug_log("Editor exited with code {}".format(result.returncode))
@@ -205,6 +221,7 @@ def prompt_annotation(task, event):
         return None
 
     finally:
+        tty.close()
         # Clean up temp file
         try:
             os.unlink(tmppath)
@@ -221,7 +238,7 @@ def save_annotation(task, text):
 
     try:
         result = subprocess.run(
-            ["task", "rc.hooks=off", "rc.confirmation=off", uuid, "annotate", text],
+            ["task", "rc.hooks=off", "rc.confirmation=off", uuid, "annotate", "--", text],
             capture_output=True, text=True
         )
 
@@ -259,7 +276,47 @@ def should_trigger(task, config):
     return False, None
 
 
+def spool(task, event):
+    """No terminal (TW_NOINTERACT): leave the editor step to the client (CONVENTIONS §3)."""
+    uuid = task.get("uuid", "")
+    spool_dir = os.environ.get("TW_SPOOL_DIR", "")
+    if not uuid or not spool_dir or not os.path.isdir(spool_dir):
+        print("[annn] No terminal; annotate later: task {} annotate -- …".format(uuid or task.get("id", "")))
+        return
+    cmd = " ".join(shlex.quote(a) for a in
+                   [sys.executable, os.path.abspath(__file__), "--annotate", uuid, event])
+    path = os.path.join(spool_dir, "annn-{}.cmd".format(uuid))
+    try:
+        with open(path, "w") as f:
+            f.write(cmd + "\n")
+        debug_log("Spooled: {}".format(cmd))
+    except OSError as e:
+        debug_log("Spool failed: {}".format(e))
+        print("[annn] No terminal; annotate later: task {} annotate -- …".format(uuid))
+
+
+def annotate_later(uuid, event):
+    """--annotate UUID EVENT: the spooled step, run by the client in a terminal."""
+    try:
+        out = subprocess.run(["task", "rc.hooks=off", "rc.verbose=nothing", uuid, "export"],
+                             capture_output=True, text=True).stdout
+        tasks = json.loads(out or "[]")
+    except (OSError, ValueError) as e:
+        print("[annn] Could not read task {}: {}".format(uuid, e))
+        return 1
+    if not tasks:
+        print("[annn] No task {}".format(uuid))
+        return 1
+    text = prompt_annotation(tasks[0], event)
+    if text:
+        save_annotation(tasks[0], text)
+    return 0
+
+
 def main():
+    if len(sys.argv) == 4 and sys.argv[1] == "--annotate":
+        sys.exit(annotate_later(sys.argv[2], sys.argv[3]))
+
     # on-exit: consume stdin, do NOT echo back
     lines = sys.stdin.readlines()
 
@@ -290,6 +347,10 @@ def main():
 
         debug_log("Task {} ({}): triggered by {}".format(
             task.get("id"), task.get("description", "")[:30], event))
+
+        if os.environ.get("TW_NOINTERACT"):
+            spool(task, event)
+            continue
 
         text = prompt_annotation(task, event)
 
