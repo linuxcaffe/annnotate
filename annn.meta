@@ -16,6 +16,6 @@ author=Designed by linuxcaffe, implemented by Claude Sonnet 4.5
 license=MIT
 requires_taskwarrior=2.6.0
 
-wrapper.keyword=ann
-wrapper.script=annn
-wrapper.type=command
+wrapper.1.keyword=ann
+wrapper.1.script=annn
+wrapper.1.type=command
