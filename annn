@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # annn - Annotation helper for Taskwarrior
-# version 0.5.2
+# version 0.8.0
 #
 # Usage:
 #   annn <id>                    Open $EDITOR for a new annotation
@@ -16,7 +16,7 @@
 
 set -euo pipefail
 
-readonly VERSION="0.7.0"
+readonly VERSION="0.8.0"
 readonly SCRIPT_NAME="$(basename "$0")"
 readonly EDITOR="${EDITOR:-vim}"
 
@@ -632,9 +632,51 @@ remove_annotation() {
 # ============================================================================
 # Task notes — note: label with file storage in ~/.task/notes/
 # File: ~/.task/notes/<slug>-<uuid8>.note.md
+#
+# With nb and the nb-plugins tw.nb-plugin installed, the note is an nb note
+# instead: `nb tw note` finds it (in any folder or notebook, by the task's
+# `nb:` annotation) or creates it with frontmatter, and nb commits each edit.
 # ============================================================================
 
 NOTES_DIR="${HOME}/.task/notes"
+
+nb_tw_available() {
+    command -v nb >/dev/null 2>&1 &&
+        [[ -e "${NB_DIR:-${HOME}/.nb}/.plugins/tw.nb-plugin" ]]
+}
+
+# nb_tw_note <id> [--find] → prints "selector<TAB>path<TAB>created", or fails
+nb_tw_note() {
+    local id="$1"; shift
+    local uuid out
+    uuid=$(task_get "$id.uuid")
+    out=$(nb tw note "$uuid" "$@" --porcelain </dev/null 2>/dev/null) || return 1
+    printf '%s\t%s\t%s\n' \
+        "$(sed -n 's/^selector: //p' <<<"$out")" \
+        "$(sed -n 's/^path: //p' <<<"$out")" \
+        "$(sed -n 's/^created: //p' <<<"$out")"
+}
+
+# nb_locked <cmd...>: run under nb-web's nb lock when flock exists (nb-web invariant 72)
+nb_locked() {
+    local lock="${NB_DIR:-${HOME}/.nb}/.logs/nb-web-nb.lock"
+    if command -v flock >/dev/null 2>&1 && [[ -d "$(dirname "$lock")" ]]; then
+        flock "$lock" "$@"
+    else
+        "$@"
+    fi
+}
+
+# First non-blank line; for an nb note (frontmatter) the first after the frontmatter and
+# its title heading, which only repeats the task description
+note_summary() {
+    awk 'NR==1 && /^---$/ {fm=1; nbnote=1; next}
+         fm && /^---$/ {fm=0; next}
+         fm {next}
+         /^[[:space:]]*$/ {next}
+         nbnote && !seen_heading && /^# / {seen_heading=1; next}
+         {print; exit}' "$1"
+}
 
 get_note_file() {
     local id="$1"
@@ -649,7 +691,7 @@ update_note_annotation() {
     local id="$1"
     local note_file="$2"
     local first_line
-    first_line=$(grep -m1 '.' "$note_file" 2>/dev/null || echo "")
+    first_line=$(note_summary "$note_file" 2>/dev/null || echo "")
 
     # Remove any existing note: annotation(s)
     local idxs old_text
@@ -664,9 +706,51 @@ update_note_annotation() {
     fi
 }
 
+note_action_nb() {
+    local id="$1"
+    local inline_text="${2:-}"
+    local content=""
+
+    if [[ -n "$inline_text" ]]; then          # text on the command line wins
+        content="$inline_text"
+    elif [[ ! -t 0 ]]; then
+        content="$(cat)"
+        if [[ -z "$content" ]]; then
+            msg "Empty input, nothing saved."
+            return
+        fi
+    fi
+
+    local found sel note_file created
+    found=$(nb_tw_note "$id") || die "nb tw note failed for task $id"
+    IFS=$'\t' read -r sel note_file created <<<"$found"
+
+    if [[ -n "$content" ]]; then
+        nb_locked nb edit "$sel" --content "$content" </dev/null >/dev/null 2>&1 ||
+            die "could not append to $sel"
+        update_note_annotation "$id" "$note_file"
+        msg "Note updated for task $id ($sel)"
+        return
+    fi
+
+    # Interactive: nb opens $EDITOR and commits afterwards
+    show_task_context "$id"
+    nb edit "$sel"
+    update_note_annotation "$id" "$note_file"
+    if [[ "$created" == yes ]]; then
+        msg "Note created: $sel"
+    else
+        msg "Note updated: $sel"
+    fi
+}
+
 note_action() {
     local id="$1"
     local inline_text="${2:-}"
+    if nb_tw_available; then
+        note_action_nb "$id" "$inline_text"
+        return
+    fi
     local note_file
     note_file=$(get_note_file "$id")
     mkdir -p "$NOTES_DIR"
@@ -735,8 +819,47 @@ note_action() {
     fi
 }
 
+remove_note_nb() {
+    local id="$1"
+    local found sel note_file created desc
+    desc=$(task_get "$id.description")
+    echo "Task $id: $desc"
+    echo "---"
+    if ! found=$(nb_tw_note "$id" --find); then
+        echo "(No note for this task)"
+        return
+    fi
+    IFS=$'\t' read -r sel note_file created <<<"$found"
+    echo "Note: $sel"
+    printf "  %s\n" "$(note_summary "$note_file")"
+    echo ""
+
+    read -rp "Remove note annotation and file? [y/N]: " response
+    if [[ "${response,,}" != "y" ]]; then
+        msg "Cancelled."
+        return
+    fi
+
+    local idxs old_text
+    mapfile -t idxs < <(find_by_label "$id" "note"; find_by_label "$id" "nb")
+    # denotate by text, highest index first so the rest stay valid
+    for idx in $(printf '%s\n' "${idxs[@]}" | sort -rn); do
+        old_text=$(task_get "$id.annotations.${idx}.description")
+        if [[ "$old_text" == note:* || "$old_text" == "nb: $sel" ]]; then
+            task rc.verbose=nothing rc.confirmation=off "$id" denotate "$old_text" 2>/dev/null || true
+        fi
+    done
+    nb_locked nb delete "$sel" --force </dev/null >/dev/null 2>&1 ||
+        die "could not delete $sel"
+    msg "Note removed: $sel"
+}
+
 remove_note() {
     local id="$1"
+    if nb_tw_available; then
+        remove_note_nb "$id"
+        return
+    fi
     local note_file
     note_file=$(get_note_file "$id")
 

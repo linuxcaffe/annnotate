@@ -268,6 +268,24 @@ note: <first line of the note file>
 This keeps the task list readable while the full note is always a
 `annn 42.note` away.
 
+### Tasknotes in nb
+
+With [nb](https://xwmx.github.io/nb/) and the
+[tw.nb-plugin](https://github.com/linuxcaffe/nb-plugins#twnb-plugin) installed, a tasknote is an
+nb note instead (annn 0.8.0):
+
+- `annn 42.note` asks `nb tw note` for the task's note: the one its `nb:` annotation names (in
+  any notebook or folder), or a new one in `tasknotes:` with frontmatter (`type: task`,
+  `tw: <uuid>`), filed in a folder per project. The task gets an `nb: tasknotes:<path>` annotation
+  as well as the `note:` summary.
+- Editing goes through `nb edit`, so every change is committed; piped and inline text are
+  appended the same way.
+- The `note:` summary skips the frontmatter and the note's `# <title>` heading.
+- `annn -42.note` removes the `note:` and `nb:` annotations and deletes the note with nb.
+- `~/.task/templates/note.md` isn't used for nb notes: the notebook's `.templates/task.md` is.
+
+Without the plugin, annn keeps its own files in `~/.task/notes/` as below.
+
 ### Tasknote examples
 
 ```bash
