@@ -1,10 +1,10 @@
 # annn.meta
-# Opens annotations in your editor, add, list or remove them with easy syntax
+# Opens a task's annotations in your editor: add, list, label or remove them with short commands
 
 name=annn
 version=0.8.0
 type=wrapper
-description=Opens annotations in your editor, add, list or remove them with easy syntax
+description=Opens a task's annotations in your editor: add, list, label or remove them with short commands
 repo=https://github.com/linuxcaffe/tw-ann-hook
 base_url=https://raw.githubusercontent.com/linuxcaffe/tw-ann-hook/master
 files=on-exit_annn.py:hook,annn:script,annn.rc:config,README.md:doc
