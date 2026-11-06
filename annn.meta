@@ -5,12 +5,12 @@ name=annn
 version=0.8.0
 type=wrapper
 description=Opens a task's annotations in your editor: add, list, label or remove them with short commands
-repo=https://github.com/linuxcaffe/tw-ann-hook
-base_url=https://raw.githubusercontent.com/linuxcaffe/tw-ann-hook/master
+repo=https://github.com/linuxcaffe/annnotate
+base_url=https://raw.githubusercontent.com/linuxcaffe/annnotate/master
 files=on-exit_annn.py:hook,annn:script,annn.rc:config,README.md:doc
 tags=annotations, notes, labels, templates, list, edit, wrapper
 
-checksums=62512cbf83dc86481d47d5de78157f91b6771aac121e934c9e6aa1428433670d,f2c6031f33a700ed20e69320c4eae13f53e030a0826c4eb5ae2c9a349368824b,c068f842cb39314d9ec3e2ec2c4cc6ebe85f1edb271a04299261b9a60d6033e8,7673cbe5295130b7bdccfa4e8c420cb319e0e178bb2788b58e2312c32e1a4549
+checksums=62512cbf83dc86481d47d5de78157f91b6771aac121e934c9e6aa1428433670d,f2c6031f33a700ed20e69320c4eae13f53e030a0826c4eb5ae2c9a349368824b,c068f842cb39314d9ec3e2ec2c4cc6ebe85f1edb271a04299261b9a60d6033e8,b7f0bcedb2faf33d5401d96b9b11e9e9dea098796ed42fa9c30b14074b359211
 
 author=Designed by linuxcaffe, implemented by Claude Sonnet 4.5
 license=MIT

@@ -1,5 +1,5 @@
-- Project: https://github.com/linuxcaffe/tw-ann-hook
-- Issues:  https://github.com/linuxcaffe/tw-ann-hook/issues
+- Project: https://github.com/linuxcaffe/annnotate
+- Issues:  https://github.com/linuxcaffe/annnotate/issues
 
 # annn
 

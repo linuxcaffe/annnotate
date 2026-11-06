@@ -9,7 +9,7 @@ set -euo pipefail
 
 VERSION="0.8.0"
 APPNAME="annn"
-BASE_URL="https://raw.githubusercontent.com/linuxcaffe/tw-ann-hook/master"
+BASE_URL="https://raw.githubusercontent.com/linuxcaffe/annnotate/master"
 
 # Colors
 RED='\033[0;31m'
